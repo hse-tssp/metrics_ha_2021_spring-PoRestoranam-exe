@@ -1,0 +1,154 @@
+---
+title: "Metrics_hw"
+output: html_document
+---
+
+#Data
+```{r}
+library("forecast")
+install.packages("feasts", repos = "http://cran.us.r-project.org")
+library(feasts)
+my_data <- read.csv("Metrics_dz.csv") 
+
+ts <- ts(my_data['Un'], frequency = 12, start = c(2000, 1))
+
+View(ts)
+```
+
+
+#Graphs
+```{r}
+plot.ts(ts)
+acf(ts, lag.max = 40)
+pacf(ts, lag.max = 40)
+ggseasonplot(ts)
+```
+
+
+#Forecast
+```{r}
+train <- ts[time(ts) < 2020]
+test <- ts[time(ts) >= 2020]
+
+train <- ts(train, frequency = 12, start = c(2000, 1))
+test <- ts(test, frequency = 12, start = c(2020, 1))
+
+install.packages('fable', repos = "http://cran.us.r-project.org")
+library(fable)
+
+train <- as_tsibble(train)
+test <- as_tsibble(test)
+```
+
+#NAIVE
+```{r}
+naive <- train %>%
+  model(NAIVE(value)) %>%
+  forecast(new_data = test)
+```
+
+
+#SNAIVE
+```{r}
+snaive <- train %>%
+  model(SNAIVE(value ~ lag("year") )) %>%
+  forecast(new_data = test)
+```
+
+#ETSAAA
+```{r}
+etsaaa <- train %>%
+  model(ETS(value ~ season("A") + trend("A") + error("A"))) %>%
+  forecast(new_data = test)
+```
+
+#ETSZZZ
+
+```{r}
+etszzz <- train %>%
+  model(ETS(value)) %>%
+  forecast(new_data = test)
+```
+
+#SARIMA
+
+```{r}
+sarima <- train %>%
+  model(ARIMA(value ~ 1 + pdq(1, 1, 1) + PDQ(1, 0, 0, period = 12))) %>%
+  forecast(new_data = test)
+```
+
+#AUTO_SARIMA
+
+```{r}
+auto_sarima <- train %>%
+  model(ARIMA(value)) %>%
+  forecast(new_data = test)
+```
+
+#MAE
+```{r}
+accuracy(naive, test)
+accuracy(snaive, test)
+accuracy(etsaaa, test)
+accuracy(etszzz, test)
+accuracy(sarima, test)
+accuracy(auto_sarima, test)
+
+```
+
+#Forecast
+```{r}
+ts %>%
+  as_tsibble() %>%
+  model(NAIVE(value) ) %>%
+  forecast() %>%
+  autoplot(ts)
+
+
+
+```
+
+#RLMS
+```{r}
+install.packages("plm", repos = "http://cran.us.r-project.org")
+library(plm)
+```
+
+```{r}
+rlms <- read.csv("rlms.csv", sep = ';')
+rlms <- rlms[rlms$AGE < 200, ]
+rlms <- rlms[rlms$J10 < 99999990, ]
+rlms$J10 <- as.numeric(rlms$J10)
+rlms <- rlms[!(rlms$J10 == ' ' | is.na(rlms$J10) | rlms$J10 == ''), ]
+
+View(rlms)
+
+```
+
+```{r}
+plot(rlms$AGE, rlms$J10, main="Scatterplot",
+   xlab="Age ", ylab="Income ", pch=19)
+
+Panel <- pdata.frame(rlms, index = c('IDIND', 'YEAR'), drop.index = TRUE)
+
+```
+
+```{r}
+model.pooled <- plm(J10~AGE, data = Panel, model = "pooling")
+model.fe <- plm(J10~ AGE, data = Panel, model = "within")
+model.re <- plm(J10~AGE, data = Panel, model = "random")
+```
+
+```{r}
+summary(model.fe)
+```
+
+
+```{r}
+pFtest(model.fe, model.pooled)
+phtest(model.fe, model.re)
+plmtest(model.pooled, effect="individual", type="bp")
+```
+
+
